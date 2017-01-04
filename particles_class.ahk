@@ -4,624 +4,601 @@ Version 2.0 (Wednesday, January 4, 2017)
 Created: Thursday, December 22, 2016
 Author: tidbit
 Credit: 
+	maestrith - dlg_color()
 	tic - GDIP
-	CaptureCursor - ???
 	
 Hotkeys:
 
 Description:
-	Add a particle system to your script! Lines, circles, connected lines, and much more types!
-	Control the speed, angle, jitter and many more properties. Values are transitioned smoothly if more than 1
-	value is specified.
 
-	setup:
-	; create something we can draw on
-	gui, add, picture, xm ym w300 w500 h500 0xE hwndPHWND vPDisp
-	gui, show
-
-	; Start gdi+
-	pToken:=Gdip_Startup()
-	
-	; create a system that runs at 30 fps
-	psys:=new particles(30)
-	
-	; create a display/canvas at 100,100 an a size of 500x300, the the best quality (1-4)
-	; we set it to draw on the control we made above
-	psys.setCanvas( 100, 100, 500, 300, 4, PHWND)
-
-	; add the thing that gives all the particles their properties. blank = defaults
-	e1:=psys.addEmitter()
-	
-	; add multiple emitters!
-	e2:=psys.addEmitter()
-	e2.speed:=100 ; change the particles of this emitter to move 100px per second
-	e2.gravity:=50 ; make the particles fall down
-
-	; now we need particles. the actual things we see.
-	psys.addParticle(50, 80) ; create a particle for the default (first) emitter
-	psys.addParticle(50, 80, 2) ; create a particle for the second
-
-	; creating particles isn't enough, though. we need to advance the simulation
-	; ... but before we do that, we should clear what was drawn previously, so we only see
-	; the current frame, not old dead copies.
-	psys.clear() ; clear the canvas for preperation to draw the new stuff
-	psys.step() ; step forward in time 1 frame!
-
-	; finally, we can show it!
-	psys.draw()
-
-	; ... now just add particles, clear, step and draw in a loop/timer and it's animated!
 */
 
-class particles
-{
-	__New(FPS=30)
-	{
-		this.var:=555
-		this.defaults:={"type":"Generic", "life":[1], "offx":0, "offy":0
-		, "color":"", "colorMode":1, "colorVari":0, "alpha":[255]
-		, "lineWidth":[0], "circleSize":[10]
-		, "pattern":["r"], "speed":[100], "gravity":[0], "jitter":[0], "spiral":[0]}
-		
-		this.emitters:=[] ; apparently adding commas makes stuff faster
-		this.particles:=[[]]
-		this.FPS:=FPS
-		this.delay:=1000//FPS
-		this.drawCount:=0
-	}
 
-	; I know this isn't the proper way to do it, but it works
-	getDeltaTime()
-	{
-		deltaT:=(1000/this.FPS)/1000
-		return deltaT
-	}
+#NoEnv  ; Recommended for performance and compatibility with future AutoHotkey releases.
+SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
+; #singleInstance, off
+#singleInstance, force
+setBatchLines, -1
+setWinDelay, -1
+setControlDelay, -1
+; includes are at the bottom
+
+_name_:="Particle System"
+_version_:="2.0 (Saturday, December 31, 2016)"
+OnExit, whyMustYouLeaveMe
+
+
+ptypes:="Generic|Generic Fill|Sparks||AllLines|Text|Image|Cursor"
+; ptypes:="Generic|Generic Fill|Sparks||AllLines|Cursor"
+
+quality:=2 ; 1 2 3 or 4
+emitArrGUI:={}
+frame:=0
+FPS:=30
+
+BGCol:="0x002233"
+guiFontSize:=10
+; https://www.strangeplanet.fr/work/gradient-generator/index.php
+gradientPresets:={"---":""
+, "Fire":["FFFFFF","FFFEBF","FFFD7F","FFFC3F","FFFB00","FFE600","FFD100","FFBC00","FFA800","FF9300","FF7E00","FF6900","FF5500"]
+, "Rainbow":["FF0000","F71507","F02B0F","E94116","E2571E","E96116","F06B0F","F77507","FF7F00","FFA900","FFD400","FFFF00","AAFF00","55FF00","00FF00","00AA55","0055AA","0000FF","2E00FF","5C00FF","8B00FF"]
+, "Rainbow2":["8FBC8F","FF1493","191970"]
+,"Pur1":["114599","2244A1","3343AA","4442B3","5641BB","6740C4","783FCD","8A3ED6","7B3ECE","6C3FC6","5D40BF","4E41B7","3F42B0","3043A8","2244A1"]
+, "Pur1-R": ["783FCD","693FC5","5A40BE","4B41B6","3D42AF","2E43A7","1F44A0","114599","1E449F","2C43A6","3942AD","4741B4","5440BB","623FC2","703FC9"]
+, "Hue":["FF0000","FF003F","FF007F","FF00BF","FF00FF","BF00FF","7F00FF","3F00FF","0000FF","0055FF","00AAFF","00FFFF","00FFAA","00FF55","00FF00","55FF00","AAFF00","FFFF00","FFAA00","FF5500","FF0000"]}
+
+dirsPresets:=["r",0,45,90,180,270,"18 36 54 72 90 108 126 144 162 180 198 216 234 252 270 288 306 324 342 360"
+,"0 5 10 13 16 17 16 13 10 5 0 -5 -10 -13 -16 -17 -16 -13 -10 -5"
+, "0 2 3 5 5 6 5 5 3 2 0 -2 -3 -5 -5 -6 -5 -5 -3 -2"]
+
+
+gui, main: margin, 3, 6
+gui, main: font, s%guiFontSize%
+; gui, main: add, picture, xm ym w500 h300 0x1000
+gui, main: add, text, xm y+m, Emitter(s)
+gui, main: add, listbox, xp y+m w100 r12 altsubmit veLB geChanged
+gui, main: add, button, xp y+m w75 gaddEmit, +
+gui, main: add, button, x+2 yp w23 gdeleteEmit, -
+
+gui, main: add, text, xm y+m, FPS (1-60):
+gui, main: add, edit, x+m yp-3 w40 number right vFPS gqueue, 30
+gui, main: add, text, xm y+m, PPS (1-60):
+gui, main: add, edit, x+m yp-3 w40 number right vPPS gqueue, 30
+gui, main: add, button, xm y+m w100 vcolBtn gchooseCol, BG Color
+gui, main: add, checkbox, xm y+0 hp vuseMouse gqueue, Follow Mouse
+
+guiControlGet, pos, main: pos, eLB
+guiControlGet, pos2, main: pos, FPS
+guiControl, main: move, FPS, % "w" posw+posx-pos2x
+guiControl, main: move, PPS, % "w" posw+posx-pos2x
+guiControl, main: move, colBtn, % "w" posw
+guiControl, main: move, useMouse, % "w" posw
+
+gui, main: add, text, x+m ym section vtxte1, Type:
+gui, main: add, DDL, x+m yp-3 altsubmit veType gqueue, %ptypes%
+gui, main: add, text, xs y+m vtxte5, Text:
+gui, main: add, edit, x+m yp-3 veMisc gqueue
+
+
+gui, main: add, text, xs y+m vtxte3, Life (min, max):
+gui, main: add, edit, x+m yp-3 w40 vlifemin gqueue, 1
+gui, main: add, edit, x+m yp wp vlifemax gqueue, 1
+gui, main: add, checkbox, x+m yp hp vuseFrames gqueue, Frames
+
+gui, main: add, text, xs y+m vtxte4, Position (x, y):
+gui, main: add, edit, x+m yp-3 w40 voffx gqueue, 0
+gui, main: add, edit, x+m yp wp voffy gqueue, 0
+; gui, main: add, checkbox, x+m yp hp vuseMouse gqueue, Mouse
+
+
+guiControlGet, pos, main: pos, lifemax
+guiControlGet, pos2, main: pos, lifemin
+guiControl, main: move, offx, x%pos2x% w%pos2w%
+guiControl, main: move, offy, x%posx% w%posw%
+guiControlGet, pos, main: pos, useFrames
+guiControlGet, pos2, main: pos, eType
+guiControl, main: move, eType, % " w" posx+posw-pos2x
+guiControlGet, pos2, main: pos, eMisc
+guiControl, main: move, eMisc, % " w" posx+posw-pos2x
+
+GroupBox2("Emitter", "txte1,txte3,txte4,txte5,etype,emisc,qty,lifemin,lifemax,offx,offy,useFrames", "main")
+
+
+gui, main: add, text, xs y+m vtxtc2, Mode:
+gui, main: add, DDL, x+m yp-3 altsubmit vcolormode gqueue, Cycle||Random|Life|Life Reverse
+
+ttt:=""
+for k in gradientPresets
+	ttt.= k "|"
+gui, main: add, text, xs y+m vtxtc5, Presets:
+gui, main: add, DDL, x+m yp-3 altsubmit vcolorPre gqueue, % strReplace(trim(ttt, "|"), "|", "||",, 1)
+
+gui, main: add, link, xs y+m vtxtc1 w120, <a href="https://www.strangeplanet.fr/work/gradient-generator/index.php">Colors (rrggbb)</a>
+gui, main: add, text, x+m yp vtxtc4 wp, Alphas (0-255)
+
+gui, main: font,, consolas
+gui, main: add, edit, xs y+m wp r6 -wrap vcolors gqueue, ff4400
+gui, main: add, edit, x+m yp wp r6 valphas gqueue, 255`n80
+gui, main: font
+gui, main: font, s%guiFontSize%
+; gui, main: add, edit, xs y+m wp r6 vcolors gqueue, 336699`nff4400`n112233`n3352ba`naa22aa`n512aff
+; gui, main: add, edit, x+m yp wp r6 valphas gqueue, 0`n0`n255`n100
+
+gui, main: add, text, xs y+m vtxtc3, Color +/- (-255 - 255):
+gui, main: add, edit, x+m yp-3 w50 vvariations gqueue, 30
+
+guiControlGet, pos, main: pos, alphas
+guiControlGet, pos2, main: pos, colormode
+guiControl, main: move, variations, x%posx% w%posw%
+guiControl, main: move, colormode, % "w" posx+posw-pos2x
+guiControlGet, pos2, main: pos, colorPre
+guiControl, main: move, colorPre, % "w" posx+posw-pos2x
+
+ttt2:=GroupBox2("Color settings", "txtc1,txtc2,txtc3,txtc4,txtc5,colors,colormode,variations,alphas,colorPre", "main")
+guiControl, main: move, % ttt[1], % "w" ttt2[4]
+guiControlGet, pos2, main: pos, type
+guiControl, main: move, type, % "w" ttt2[2]+ttt2[4]-pos2x-6
+
+gui, main: add, text, ym section vtxtp1, Thicknesses (#, ...):
+gui, main: add, edit, x+m yp-3 w100 r1 vlw gqueue, 5
+
+gui, main: add, text, xs y+m vtxtp2, Size (#, ...):
+gui, main: add, edit, x+m yp-3 w100 r1 vcs gqueue, 0, 20
+
+gui, main: add, text, xs y+m vtxtp3, Directions* (angle, ...):
+
+ttt:=""
+for k, v in dirsPresets
+	ttt.=v "|"
+gui, main: add, comboBox, x+m yp-3 w100 r10 vdirs gqueue, % strReplace(trim(ttt, "|"), "|", "||",, 1)
+gui, main: add, text, xp y+0 vtxtp4 cblue backgroundtrans, * r = random
+gui, main: add, checkbox, xs+30 yp checked vcycle gqueue, Cycle?
+gui, main: add, checkbox, xp y+m vrelm gqueue, Relative to mouse?
+gui, main: add, checkbox, xp y+m vrelw gqueue, Relative to mouse (Reverse)?
+
+gui, main: add, text, xs y+m vtxtp5, Speed (#, ...):
+gui, main: add, edit, x+m yp-3 w100 r1 vspeeds gqueue, 100
+
+gui, main: add, text, xs y+m vtxtp6, Jitter (#, ...):
+gui, main: add, edit, x+m yp-3 w100 r1 vjitters gqueue, 0
+
+gui, main: add, text, xs y+m vtxtp7, Gravity* (#, ...):
+gui, main: add, edit, x+m yp-3 w100 r1 vgravity gqueue, 100
+gui, main: add, text, xs y+0 vtxtp8 cblue backgroundtrans, * 0 is off, -# is up, # is down
+gui, main: add, text, xs y+m vtxtp9, Spiral:
+gui, main: add, edit, x+m yp-3 w100 r1 vspiral gqueue, 0
+
+
+GroupBox2("Properties", "txtp1,txtp2,txtp3,txtp4,txtp5,txtp6,txtp7,txtp8,txtp9,lw,cs,dirs,cycle,relm,relw,speeds,jitters,gravity, spiral", "main")
+
+guiControlGet, pos, main: pos, dirs
+guiControl, main: move, lw, x%posx%
+guiControl, main: move, cs, x%posx%
+
+guiControlGet, pos, main: pos, speeds
+guiControl, main: move, jitters, x%posx%
+guiControl, main: move, gravity, x%posx%
+guiControl, main: move, spiral, x%posx%
+
+gui, preview: margin, 0, 0
+gui, preview: color, %BGCol%
+gui, preview: +toolWindow +ownerMain +resize
+gui, preview: add, picture, xm ym w300 w500 h500 0xE hwndPHWND vPDisp gclickToSetAnchor
+
+; Start gdi+
+pToken:=Gdip_Startup()
+
+gui, main: +hwndMAINHWND
+gui, main: show, x200 ycenter, %_name_% %_version_%
+
+contArr:=["etype","emisc","lifemin","lifemax","offx","offy","useFrames"
+,"colorPre","colors","colormode","variations","alphas","lw","cs","dirs","cycle"
+,"relm","relw","speeds","jitters","gravity","spiral"]
+
+winGetPos, x,y,w,h, ahk_id %MAINHWND%
+gui, preview: show, % "x" x+w " y" y " autosize", Preview - %_name_% 
+; gui, preview: show, % "x" x " y" y " autosize", Preview
+
+psys:=new particles(FPS)
+; msgBox % st_printArr(psys)
+
+
+
+gosub, setup
+gosub, addEmit
+; gosub, changeEProperty
+; gosub, update
+return
+
+
+whyMustYouLeaveMe: ; why? :(
+previewguiClose:
+mainguiClose:
+~esc::
+	; gdi+ may now be shutdown
+	Gdip_Shutdown(pToken)
+	ExitApp
+return
+
+
+; j::msgBox % st_printArr(emitArrGUI)
+; j::psys.particles[1]:=[]
+
+
+chooseCol:
+	BGCol:=RGB(dlg_color(BGCol,MAINHWND)) 
+	gui, preview: color, 0x%BGCol%
+return
+
+
+setup:
+	gui, main: submit, noHide
 	
-	clear(refresh="")
+	guiControlGet, drawArea, preview: pos, PDisp
+	anchorX:=(drawAreaW//2)+offx
+	anchorY:=(drawAreaH//2)+offy
+
+	; quality:=3
+	psys:=new particles(FPS)
+	Graphics:=psys.setCanvas(0, 0, drawAreaW, drawAreaH, quality, PHWND)
+return
+
+
+deleteEmit:
+	guiControlGet, eLB, main:
+	psys.Emitters.removeAt(eLB)
+	emitArrGUI.removeAt(eLB)
+	ttt:=""
+	for k in psys.Emitters
 	{
-		Gdip_GraphicsClear(this.ggg)
-		if (refresh!="")
-			UpdateLayeredWindow(refresh, this.hdc, this.cx, this.cy, this.cw, this.ch)
-		; brush:=Gdip_BrushCreateSolid("0x7700ff00")
-		; Gdip_FillRectangle(this.ggg, brush, 0, 0, this.cw, this.ch)
-		; gdip_deleteBrush(brush)
-	}
-	
-	addEmitter(pe="")
-	{
-		if (!isObject(pe))
-			ttt:=this.emitters.push({"type":"Generic"})
+		if (k=eLB)
+			ttt.=psys.Emitters[k].type "||"
 		else
-			ttt:=this.emitters.push(pe)
-			
-		
-		for dkey, dval in this.defaults
-		for ekey, eval in this.emitters
-			if ((isObject(dval) && eval[dkey].length()<0) || eval[dkey]="")
-				eval[dkey]:=dval
-		return this.emitters[ttt]
+			ttt.=psys.Emitters[k].type "|"
 	}
-	
-	; Quaity: Default = 0, HighSpeed = 1, HighQuality = 2, None = 3, AntiAlias = 4
-	setCanvas(cx, cy, cw, ch, cquality, drawOnThis="") ; c = canvas
-	{
-		this.clear(this.ID)
-		DeleteObject(this.hbm)
-		DeleteDC(this.hdc)
-		Gdip_DeleteGraphics(this.ggg)
-		Gdip_DisposeImage(this.cBitmap)
-	
-		if (drawOnThis="") ; fullscreen mouse mode
-		{
-			if (ttt!="")
-				gui, %ttt%: destroy
-			ttt:=this.ID
-			this.cx:=cx
-			this.cy:=cy
-			this.cw:=cw
-			this.ch:=ch
-			; ttt:=substr(this.ID, 3)
-			nnn:=rand(1,20000) ; pretty horrible, I know
-			gui, new, +hwndMYID%nnn% -Caption +E0x80000 +AlwaysOnTop +ToolWindow +OwnDialogs +Owner
-			; gui, show, x0 y0 NA, mouse particles %nnn%
-			gui, show, x%cx% y%cy% w%cw% h%ch% NA, mouse particles %nnn%
-			; msgBox x%cx% y%cy% w%cw% h%ch%
-			this.hbm:=CreateDIBSection(cw, ch)
-			, this.hdc:=CreateCompatibleDC()
-			, this.obm:=SelectObject(this.hdc, this.hbm)
-			, this.ggg:=Gdip_GraphicsFromHDC(this.hdc)
-			, Gdip_SetSmoothingMode(this.ggg, cquality)
-			, this.ID:=MYID%nnn%
-			; , this.ID:=WinExist("mouse particles " nnn)
-			WinSet, ExStyle, +0x20, % "ahk_id " this.ID
-			; msgBox % this.id
+	guiControl, main:, eLB, |%ttt%
+return
 
-		}
-		else ; draw on a bitmap/gui
-		{
-			winGetPos,,, cw, ch, ahk_id %drawOnThis%
-			this.cx:=0
-			, this.cy:=0
-			, this.cw:=cw
-			, this.ch:=ch
-			, this.ID:=drawOnThis
-			, this.cBitmap:=Gdip_CreateBitmap(cw, ch)
-			, this.ggg:=Gdip_GraphicsFromImage(this.cBitmap)
-			, Gdip_SetSmoothingMode(this.ggg, cquality)
-		}
-		return this.ggg
+
+addEmit:
+	gui, main: submit, noHide
+	gui, main: default
+	newE:=psys.addEmitter()
+	
+	for k, v in contArr
+		guiControl, main: -g, %v%
+	guiControl, main: -g, eLB
+	
+	guiControl, main: choose, eType, 1
+	guiControl, main:, lifemin, % newE.Life[1]
+	guiControl, main:, lifemax, % newE.Life[1]
+	guiControl, main:, offx, 0
+	guiControl, main:, offy, 0
+	guiControl, main:, useFrames, 0
+	guiControl, main:, colors, % st_glue(newE.color)
+	guiControl, main: choose, colormode, 1
+	guiControl, main:, variations, % newE.colorVari
+	guiControl, main:, alphas, % st_glue(newE.alpha)
+	guiControl, main:, lw, % st_glue(newE.lineWidth)
+	guiControl, main:, cs, % st_glue(newE.circleSize)
+	guiControl, main:text, dirs, % st_glue(newE.pattern)
+	guiControl, main:, cycle, 0
+	guiControl, main:, relm, 0
+	guiControl, main:, relw, 0
+	guiControl, main:, speeds, % st_glue(newE.speed)
+	guiControl, main:, jitters, % st_glue(newE.jitter)
+	guiControl, main:, gravity, % st_glue(newE.gravity)
+	guiControl, main:, spiral, % st_glue(newE.spiral)
+	guiControl, main:, eLB, Generic||
+	
+	gui, main: submit, noHide
+	for k, v in contArr
+	{
+		emitArrGUI[eLB, v]:=%v%
+		guiControl, main: +gqueue, %v%
 	}
-	
-	draw(drawOnThis="") ; p = particle, e = emitter
-	{
-		; eee:=this.emitter
-		this.drawCount:=0
-		for eeeN in this.emitters
-		{
-			ppp:=this.particles[eeeN]
-			
-			; item = current particle #
-			; vvv = current particle sub-array properties
-			; ppp = particle array
-			for item, vvv in ppp 
-			{
-				color:=vvv.color
-				, alpha2:=vvv.alpha
-				, alpha:=format("{:02x}", vvv.alpha)
-				, type:=vvv.type
-				, radius:=vvv.radius
-				, lw:=vvv.lineW
-				
-				if (radius="" || alpha2<1) ; brushes
-					radius:=0, alpha:="00"
-				else
-					brush:=Gdip_BrushCreateSolid("0x" alpha . color)
-							
-				if (lw="" || alpha2<1) ; lines
-					lw:=0, alpha:="00"
-				else
-					pen:=Gdip_CreatePen("0x" alpha . color, lw)
-					, Gdip_SetEndCap(pen, (type!="sparks") ? 2 : 0)
-							
-				; if (type="Circles" || type="AllLines")
-				if (radius>0 && type!="sparks" && type!="text" && type!="image")
-					Gdip_FillEllipse(this.ggg, brush, vvv.x1-(radius//2), vvv.y1-(radius//2), radius, radius)
-					, this.drawCount+=1
-					
-				if (lw>0)
-				{
-					if (type="sparks")
-					{
-						Gdip_DrawLine(this.ggg, pen
-						, vvv.x1, vvv.y1
-						, vvv.x1+radius*cos((vvv.dir+vvv.dir2)*3.1415926535/180)
-						, vvv.y1+radius*sin((vvv.dir+vvv.dir2)*3.1415926535/180))
-						, this.drawCount+=1
-					}
-					else if (type="AllLines" && ppp.length()>1)
-					{
-						Loop, % ppp.length()-item
-							Gdip_DrawLine(this.ggg, pen
-							, ppp[item+a_index].x1, ppp[item+a_index].y1
-							, vvv.x2, vvv.y2)
-							, this.drawCount+=1
-					}
-					else if (ppp.length()>1)
-						Gdip_DrawLine(this.ggg, pen, vvv.x1, vvv.y1, vvv.x2, vvv.y2) 
-						, this.drawCount+=1
-				}
-				if (type="cursor")
-				{
-					hcur:=CaptureCursor(this.hdc, vvv.x1+1, vvv.y1)
-					; Gdip_DrawImage(this.ggg, hcur)
-				}
-					
-				if (type="text")
-				{
-					font:="Comic Sans MS"
-					, Gdip_FontFamilyCreate(font)
-					, ttt:="x" vvv.x1 " y" vvv.y1 " c" alpha color " s" radius  " r0 " vvv.misc2
-					, ttt:=strSplit(Gdip_TextToGraphics(this.ggg, vvv.misc1, ttt, font,,,1), "|")
-					, ttt2:="x" vvv.x1-(ttt[3]//2) " y" vvv.y1-(ttt[4]//2) " c" alpha color " s" radius  " r0 " vvv.misc2
-					, Gdip_TextToGraphics(this.ggg, vvv.misc1, ttt2, font)
-					, Gdip_DeleteFontFamily(font)
-					, this.drawCount+=1
-				}
-				if (type="image")
-				{
-					; img:=Gdip_CreateBitmapFromFile("C:\Users\Joe\Pictures\img.jpg")
-					; color:=vvv.color
-					; toolTip, % "::" vvv.color
-					img:=Gdip_CreateBitmapFromFile(color)
-					; img:=Gdip_CreateBitmapFromFile(vvv.misc1)
-					, Gdip_GetDimensions(img, iw, ih)
-					, iw*=radius/100
-					, ih*=radius/100
-					, Gdip_DrawImage(this.ggg, img, vvv.x1-(iw//2), vvv.y1-(ih//2), iw, ih) 
-					, this.drawCount+=1
-					, Gdip_DisposeImage(img)
-				}
-				
-				gdip_deletebrush(brush)
-				Gdip_DeletePen(pen)
-			}
-			
-			if (instr(this.emitters[eeeN].type, "fill"))
-			{
-				ttt:=""
-				for item, vvv in ppp
-					ttt.=vvv.x1 "," vvv.y1 "|"
-				ttt:=substr(ttt, 1, -1)
-				, color:=vvv.color
-				, alpha2:=vvv.alpha
-				, alpha:=format("{:02x}", vvv.alpha)
-				, brush:=Gdip_BrushCreateSolid("0x" alpha . color)
-				, Gdip_FillPolygon(this.ggg, brush, ttt, 1)
-				, this.drawCount+=1
-				gdip_deletebrush(brush)
-				Gdip_DeletePen(pen)
-			}
-		}
-		
+	guiControl, main: +geChanged, eLB
 
-		; clipboard:=st_printArr(this.particles)
-		if (drawOnThis="")
-			UpdateLayeredWindow(this.ID, this.hdc, this.cx, this.cy, this.cw, this.ch)
+	gosub, changeEProperty
+return
+
+
+clickToSetAnchor:
+	coordMode, mouse, client
+	mouseGetPos, mx, my, mw, mc
+	guiControlGet, drawArea, preview: pos, PDisp
+	anchorX:=mx-drawAreaX
+	anchorY:=my-drawAreaY
+	gosub, CreateBG
+return
+
+
+previewGuiSize:
+	guiControl, preview: move, PDisp, % "w" A_GuiWidth " h" A_GuiHeight
+	guiControlGet, drawArea, preview: pos, PDisp
+	gosub, CreateBG
+return
+
+
+CreateBG:
+	Gdip_DeleteGraphics(BGGraphics) ; get rid of the old one
+	Gdip_DisposeImage(BGBitmap)     ; get rid of the old one
+	BGBitmap:=Gdip_CreateBitmap(drawAreaW, drawAreaH)
+	BGGraphics:=Gdip_GraphicsFromImage(BGBitmap)
+	
+	; brsh := Gdip_BrushCreateSolid("0xffff4400")
+	brsh := Gdip_BrushCreateSolid("0xff" BGCol)
+	Gdip_FillRectangle(BGGraphics, brsh, 0, 0, drawAreaW, drawAreaH)
+	pen:=Gdip_CreatePen("0x44000000", 2)
+	gdip_drawLine(BGGraphics, pen, 0, anchorY, drawAreaW, anchorY)
+	gdip_drawLine(BGGraphics, pen, anchorX, 0, anchorX, drawAreaH)
+	Gdip_DrawRectangle(BGGraphics, pen, 1, 1, drawAreaW-2, drawAreaH-2) 
+	Gdip_DeleteBrush(brsh)
+	Gdip_DeletePen(pen)
+	BGCloned:=Gdip_CloneBitmapArea(BGBitmap, 0, 0, drawAreaW, drawAreaH)
+	if (useMouse=0)	
+		Graphics:=psys.setCanvas(0, 0, drawAreaW, drawAreaH, quality, PHWND)
+return
+
+
+eChanged:
+	critical
+	gui, main: submit, noHide
+	if (eLB=eLBP)
+		return
+	; msgBox % st_printArr(emitArrGUI)
+	for k, v in emitArrGUI[eLB]
+	{
+		guiControl, main: -g, %k%
+		if (k="eType" || k="colormode" || k="colorPre")
+			guiControl, main: choose, %k%, %v%
+		else if (k="dirs")
+			guiControl, main: text, %k%, %v%
 		else
-		{
-			hBitmap := Gdip_CreateHBITMAPFromBitmap(this.cBitmap)
-			SetImage(drawOnThis, hBitmap)
-			DeleteObject(hBitmap)
-			Gdip_DisposeImage(hBitmap)
-		}
-		return this.ggg
+			guiControl, main:, %k%, %v%
+		guiControl, main: +gqueue, %k%
 	}
+	eLBP:=eLB
+	; guiControl, main: +geChanged, eLB
+return
 
-	
-	step() ; this does all phy physics/color/etc math.
-	{
-		; if (this.particles.length()<=0)
-		; 	return
-		deltaT:=this.getDeltaTime()
-		eee:=this.emitters
-		
-		; eeeN = emitter number, really wish I thought of a better way to do this
-		for eeeN in eee
-		{
-			ppp:=this.particles[eeeN]
-			ecolor:=eee[eeeN].color
-			, ecolorMode:=eee[eeeN].colorMode
-			, ealpha:=eee[eeeN].alpha
-			, elw:=eee[eeeN].lineWidth
-			, ecs:=eee[eeeN].circleSize
-			, espeed:=eee[eeeN].speed
-			, ejitter:=eee[eeeN].jitter
-			, egravity:=eee[eeeN].gravity
-			, espiral:=eee[eeeN].spiral
-			for bbb, vvv in ppp
-			{
-				lp:=vvv.life/vvv.mlife ; life percent, its age.
-				stage:=vvv.mlife-vvv.life
-				if (ecolor.length()>0)
-				{
-					if (ecolorMode=4) ; gradient over life, reverse
-						color:=(ecolor.length()=1) ? ecolor[1] 
-						: ecolor[round(1+(ecolor.length()-1)*(lp))]
-					else if (ecolorMode=3) ; gradient over life
-						color:=(ecolor.length()=1) ? ecolor[1] 
-						: ecolor[1+ecolor.length()-1-round((ecolor.length()-1)*(lp))]
-					else
-						color:=vvv.color
-				}
-				else
-					color:=vvv.color
-				color:=strReplace(color, """")
-				vvv.color:=color
-				
-				vvv.alpha:=(ealpha.length()=1) ? ealpha[1] : round(numRange(vvv.mlife, stage, ealpha*))
-				vvv.radius:=(ecs.length()=1) ? ecs[1] : round(numRange(vvv.mlife, stage, ecs*))
-				vvv.lineW:=(elw.length()=1) ? elw[1] : round(numRange(vvv.mlife, stage, elw*))
-				gravity:=(egravity.length()=1) ? egravity[1] : round(numRange(vvv.mlife, stage, egravity*))
-				speed:=(espeed.length()=1) ? espeed[1] : round(numRange(vvv.mlife, stage, espeed*))
-				jitter:=(ejitter.length()=1) ? ejitter[1] : round(numRange(vvv.mlife, stage, ejitter*))
-				spiral:=(espiral.length()=1) ? espiral[1] : round(numRange(vvv.mlife, stage, espiral*))
-				speed*=deltaT
-				jitter*=deltaT
-				vvv.dir+=spiral*deltaT*-1
-				dir:=vvv.dir
-					
-				if (eee[eeeN].type="sparks")
-					dir+=rand(-jitter,jitter)
-					, vvv.dir2+=rand(-360,360)*deltaT
-					
-				; if (dir>360)
-				; 	dir:=mod(dir, 360)
-				if gravity is number
-					if (gravity!=0)
-					{
-						vvv.y1+=vvv.vel*5*deltaT
-						vvv.vel+=gravity*deltaT
-					}
-					
-				vvv.x1:=vvv.x1+speed*cos((dir)*3.1415926535/180)
-				vvv.y1:=vvv.y1+speed*sin((dir)*3.1415926535/180)
-				vvv.x1+=rand(-jitter, jitter)
-				vvv.y1+=rand(-jitter, jitter)
 
-				ppp[bbb+1].x2:=vvv.x1
-				ppp[bbb+1].y2:=vvv.y1
-				; 
-				; my own gravity system :D sure it's not realistic, but the results are nice, IMO
-				; if gravity is number
-				; 	if (gravity!=0)
-				; 		vvv.y1+=((vvv.mlife-vvv.life)*(gravity))/25
-				; 		, vvv.x1-=(vvv.mlife-vvv.life)*0.5
-				vvv.life-=1
-			}
-			
-			ttt:=0
-			loop, % ppp.length() ; start from the end, not to screw stuff up.
-			{
-				if (ppp[A_Index-ttt].life<0)
-					ppp.removeAt(A_Index-ttt)
-					, ttt+=1
-			}
-		}
-	}
+queue:
+	critical
+	; gui, submit, noHide
+	selCtrl:=A_GuiControl
+	settimer, changeEProperty, -888
+return
+changeEProperty:
+	critical
+	gui, main: default
+	gui, main: submit, noHide
 	
-	addParticle(px, py, pe=1, misc*)
+	guiControlGet, typeN, main:, eType, text
+	if (typeN="")
+		typeN:="Generic"
+	if (eLB="")
+		eLB:=1
+
+	ttt:=""
+	if (selCtrl="etype")
 	{
-		static cycleDir:=[], cycleColor:=[], mouseAngle:=0, mouseAngleP:=0, xxxp, yyyp
-		eee:=this.emitters[pe]
-		; --- LIFE ---
-		ttt:=0
-		if (eee.life[1]="f")
-			ttt:=1
-			
-		if (eee.life.length()>1+ttt)
-			life:=rand(eee.life[1+ttt], eee.life[2+ttt])
-		else
-			life:=eee.life[1+ttt]
-		
-		if (eee.life[1]="f")
-			life:=life
-		else
-			life:=floor(life*this.FPS)
-		
-		; --- COLOR ---
-		if (eee.color="" || !isObject(eee.color) || eee.color.length()<1)
-			color:=format("{:02x}{:02x}{:02x}",rand(0,255),rand(0,255),rand(0,255))
-		else if (eee.color.length()>1)
+		for k in psys.Emitters
 		{
-			(cycleColor[pe]="") ? cycleColor[pe]:=1 : cycleColor[pe]+=1
-			if (cycleColor[pe]>eee.color.length())
-				cycleColor[pe]:=1
-			if (eee.colorMode=2) ; random
-				color:=eee.color[rand(eee.color.length())]
-			else if (eee.colorMode=1) ; cycle
-				color:=eee.color[cycleColor[pe]]
+			if (a_index=eLB)
+				ttt.=typeN "||"
 			else
-				color:=eee.color[1]
+				ttt.=psys.Emitters[k].type "|"
 		}
-		else
-			color:=eee.color[1]
-		color:=strReplace(color, ["""", "#"])
-		
-		if (eee.colorVari!="" && eee.type!="image")
-				color:=cshift("0x" color, rand(-eee.colorVari, eee.colorVari))
-		
-		alpha:=eee.alpha[1]
-		
-		; --- DIR ---
-		epat:=eee.pattern
-		if (instr(epat[1], "c"))
-		{
-			(cycleDir[pe]="") ? cycleDir[pe]:=2 : cycleDir[pe]+=1
-			if (cycleDir[pe]>epat.length())
-				cycleDir[pe]:=2
-			dir:=epat[cycleDir[pe]]
-		}
-		else if (!isobject(epat) || epat[1]="r")
-			dir:=rand(360)
-		else
-			dir:=epat[rand(epat.length())]
+		guiControl, main:, eLB, |%ttt%
+	}
+	if (selCtrl="colorPre")
+	{
+		guiControlGet, colorPreN, main:, colorPre, text
+		guiControl, main:, colors, % st_glue(gradientPresets[colorPreN], "`n")
+		gui, main: submit, noHide
+	}
+	
+	; eLB:=1
+	qqq:=psys.Emitters[eLB]
+	, qqq.type:=typeN
+	, qqq.life:=[lifemin, lifemax]
+	, qqq.offx:=offx
+	, qqq.offy:=offy
 
-		if (instr(epat[1], "m") || instr(epat[1], "w"))
-		{
-			mouseGetPos, xxx, yyy
-			if (xxx=xxxp && yyy=yyyp)
-				mouseAngle:=mouseAngleP
-			else
-				mouseAngle:=getAngle(xxx,yyy,xxxp,yyyp,2)
-			dir+=(xxx=xxxp && yyy=yyyp) ? mouseAngleP : mouseAngle
+	; , qqq.color:=strSplit(colors, "`n", "`r")
+	, qqq.color:=[]
+	, qqq.colorMode:=colormode
+	, qqq.colorVari:=variations
+	, qqq.alpha:=[]
+	; , qqq.alpha:=strSplit(trim(alphas, "`r`n `t"), "`n", "`r")
+
+	, qqq.lineWidth:=strSplit(lw, [",", " "])
+	, qqq.circleSize:=strSplit(cs, [",", " "])
+	, qqq.pattern:=strSplit(dirs, [",", " "])
+	, qqq.speed:=strSplit(speeds, [",", " "])
+	, qqq.gravity:=strSplit(gravity, [",", " "])
+	, qqq.jitter:=strSplit(jitters, [",", " "])
+	, qqq.spiral:=strSplit(spiral, [",", " "])
+
+	ttt:="`n, "
+	loop, parse, colors, %ttt%, `r ; ignore blanks
+		if (trim(A_LoopField)!="")
+			qqq.color.push(A_LoopField)
+	loop, parse, alphas, %ttt%, `r ; ignore blanks
+		if (trim(A_LoopField)!="")
+			qqq.alpha.push(A_LoopField)
 			
-			if (instr(epat[1], "w"))
-				dir:=dir+180
-				
-			mouseAngleP:=floor(mouseAngle)
-			xxxp:=xxx
-			yyyp:=yyy
-		}
-		
-		if (dir="r")
-			dir:=rand(360)
+	if (useFrames=1)
+		qqq.life.insertAt(1, "f")
+	ttt:=""
+	if (cycle=1)
+		ttt.="c"
+	if (relm=1)
+		ttt.="m"
+	if (relw=1)
+		ttt.="w"
+	if (ttt!="")
+		qqq.pattern.insertAt(1, ttt)
 
-		dir*=-1
-
-		if (!isObject(this.particles[pe]))
-			this.particles[pe]:=[]
-		; msgBox % this.cx "+" eee.offx "+" px
-		this.particles[pe].insertAt(1
-		, {"x1":eee.offx+px, "y1":eee.offy+py
-		, "x2":eee.offx+px, "y2":eee.offy+py
-		; , {"x1":this.cx+eee.offx+px, "y1":this.cy+eee.offy+py
-		; , "x2":this.cx+eee.offx+px, "y2":this.cy+eee.offy+py
-		, "dir":dir, "vel":0
-		, "radius":eee.circleSize[1]
-		, "lineW":eee.lineWidth[1]
-		, "life":life, "mlife":life
-		, "color":color, "alpha":alpha
-		, "type":eee.type})
-		
-		if (eee.type="text")
-			this.particles[pe,1].misc1:=misc[1]
-			, this.particles[pe,1].misc2:=misc[2]
-
-		if (eee.type="sparks")
-			this.particles[pe,1].dir2:=rand(360)
-		; toolTip % st_printArr(this.particles) "::" pe
-	}
-
-
-	; these make me cry and will probably be removed
-	type(ptype, eNum=1) {
-		this.emitters[eNum].type:=ptype
-	}	
-	qty(pqty, eNum=1) {
-		this.emitters[eNum].qty:=pqty
-	}
-	life(plife, eNum=1) {
-		this.emitters[eNum].life:=plife
-	}
-	offx(poffx, eNum=1) {
-		this.emitters[eNum].offx:=poffx
-	}
-	offy(poffy, eNum=1) {
-		this.emitters[eNum].offy:=poffy
-	}
-	color(pcolor, eNum=1) {
-		this.emitters[eNum].color:=pcolor
-	}
-	colorMode(pcolorMode, eNum=1) {
-		this.emitters[eNum].colorM:=pcolorMode
-	}
-	colorVari(pcolorVari, eNum=1) {
-		this.emitters[eNum].colorVari:=pcolorVari
-	}
-	alpha(palpha, eNum=1) {
-		this.emitters[eNum].alpha:=palpha
-	}
-	lineWidth(plw, eNum=1) {
-		this.emitters[eNum].lineWidth:=plw
-	}
-	circleSize(pcs, eNum=1) {
-		this.emitters[eNum].circleSize:=pcs
-	}
-	pattern(ppattern, eNum=1) {
-		this.emitters[eNum].pattern:=ppattern
-	}
-	speed(pspeed, eNum=1) {
-		this.emitters[eNum].speed:=pspeed
-	}
-	gravity(pgravity, eNum=1) {
-		this.emitters[eNum].gravity:=pgravity
-	}
-	jitter(pjitter, eNum=1) {
-		this.emitters[eNum].jitter:=pjitter
-	}
-}
-
-rand(max=100, min=1)
-{
-	if (min>max)
-		t:=max, max:=min, min:=t
-	random, r, %min%, %max%
-	return r
-}
-
-; mode: 1=0-180, 2=0-359.999
-getAngle(x1,y1,x2,y2, mode=1)
-{
-	angle:=atan2(y1-y2, x1-x2)*(180/3.14159)*-1
-	if (mode=2)
-		angle+=(angle<0) ? 360 : 0 ; or should it be 359? whatever.
-	return angle
-}
-
-; 4-quadrant atan, thanks ymg! http://www.autohotkey.com/board/topic/88476-vincenty-formula-for-latitude-and-longitude-calculations/
-atan2(y,x) { 
-   Return dllcall("msvcrt\atan2","Double",y, "Double",x, "CDECL Double")
-}
-
-numRange(steps, IWantThis="", numbers*)
-{
-	age:=0
-	sets:=numbers.length()-1
-	sectionSize:=floor(steps/sets)
-	which:=0
-	total:=numbers[1]
-	out:=[]
-	if (numbers.length()=1)
-		return numbers[1]
-	loop, %steps%
+	if (typeN="Text" || typeN="Image")
 	{
-		age+=1
-		total+=stepSize
-		if (age>=sectionSize || a_index=1)
+		if (typeN="Text")
+			eMisc:=strReplace(eMisc, "``n", "`n")
+		if (typeN="image")
+			eMisc:=trim(eMisc, """")
+		transform, eMisc, deref, %eMisc%
+		qqq.misc1:=eMisc
+		guiControl, main: enable, eMisc
+	}
+	else
+		guiControl, main: disable, eMisc
+
+
+	guiControlGet, drawArea, preview: pos, PDisp
+	if (useMouse!=useMouseP) ;update the canvas size and whatnot
+		if (useMouse=1)
+			Graphics:=psys.setCanvas(0, 0, A_ScreenWidth, A_ScreenHeight, quality)
+			, psys.particles:=[]
+		else
+			Graphics:=psys.setCanvas(0, 0, drawAreaW, drawAreaH, quality, PHWND)
+			, psys.particles:=[]
+					
+	useMouseP:=useMouse
+
+	; gui, submit, noHide
+	for k, v in contArr
+		emitArrGUI[eLB, v]:=%v%
+
+	update:=1000//FPS
+	psys.fps:=FPS
+	psys.delay:=update
+	if (PPS>FPS)
+		PPS:=FPS
+	if (PPS=0)
+		PPS:=1
+	PPS:=FPS//PPS
+	setTimer, update, %update%
+return
+
+
+update:
+	; gui, preview: submit, noHide
+	; sleep, 300
+	; return
+
+	if (psys.emitters.length()>0)
+	{
+		frame++
+		coordMode, mouse, % (useMouse=1) ? "screen" : "client" ; ahk handles coordmode dumb
+		; toolTip, % psys.drawcount "/" psys.emitters.length(), 0
+
+		mouseGetPos, xxx, yyy
+		
+		psys.step()
+		psys.clear()
+		
+		; DRAW THE BACKGROUND CLONE HERE
+		if (useMouse=0)
+			Gdip_DrawImage(Graphics, BGCloned) 
+			
+		; ahk has smart evaluation. if it sees PPS>=FPS is true ...
+		; ... it'll never do mod(). Doing less division is better
+		if (PPS>=FPS || mod(frame, PPS)=0) 
 		{
-			which+=1
-			age:=0
-			numFrom:=numbers[which]
-			numTo:=numbers[which+1]
-			if (numTo="")
-				numTo:=numFrom
-			total-=stepSize
-			stepSize:=(numTo-numFrom)/(round(steps/sets)-1)
+			for dummy in psys.Emitters
+			{
+				if (useMouse=1)
+				{
+					mouseGetPos, xxx, yyy
+					psys.addParticle(xxx, yyy, a_index)
+				}
+				else
+				{
+					psys.addParticle(anchorX, anchorY, a_index, eMisc)
+				}
+			}
 		}
-		if (IWantThis="")
-			out.push(total)
-		else if (A_Index=IWantThis)
-			return total
+		
+		if (useMouse=1)
+			psys.draw()
+		else
+			psys.draw(PHWND)
 	}
-	return out
+	; psys.draw() ; ffffffffffff
+return
+
+
+
+
+st_glue(array, delim=", ")
+{
+	if (isObject(array))
+		for k,v in array
+			new.=v delim
+	else
+		new:=array
+	return trim(new, delim)
 }
 
-cshift(hex, lum=0.5, mode=2) 
+GroupBox2(Text, Controls, GuiName=1, Offset="0,0", Padding="6,6,6,6", TitleHeight=15)
 {
-	for k, val in [substr(hex, 3, 2), substr(hex, 5, 2), substr(hex, 7, 2)] ; split the hex into an array of [##,##,##]
-		val:=format("{1:d}", "0x" val) ; convert from hex, to decimal values
-		, val:=round((mode=1) ? val*lum : val+lum) ; do the math
-		, val:=(val<0) ? 0 : (val>255) ? 255 : val ; clamp the values between 0 and 255
-		, out.=format("{1:02}", format("{1:x}", val)) ; build it again, make sure each hex thing is 2 chars long
-	return out ; we're done!
-}
-
-
-Gdip_SetEndCap(pPen, cap=2)
-{
-	return DllCall("gdiplus\GdipSetPenLineCap197819", "UPtr", pPen, "Uint", cap, "Uint", cap, "Uint", 3)
-}
-
-
-CaptureCursor(hDC, nL=10, nT=10)
-{
-	VarSetCapacity(mi, 20, 0)
-	mi := Chr(20)
-	DllCall("GetCursorInfo", "Uint", &mi)
-	bShow   := NumGet(mi, 4)
-	hCursor := NumGet(mi, 8)
-
-	VarSetCapacity(ni, 20, 0)
-	DllCall("GetIconInfo", "Uint", hCursor, "Uint", &ni)
-	xHotspot := NumGet(ni, 4)
-	yHotspot := NumGet(ni, 8)
-
-	If bShow
-		DllCall("DrawIcon", "Uint", hDC, "int", nL-xHotspot , "int", nT-yHotspot, "Uint", hCursor)
-	return Gdip_CreateBitmapFromHBITMAP(hCursor) ; fails
-}
-
-
-st_printArr(array, depth=5, indentLevel="")
-{
-	for k,v in Array
+	static
+	xx:=yy:=ww:=hh:=PosX:=PosY:=PosW:=PosH:=0
+	StringSplit, Padding, Padding, `,
+	StringSplit, Offset, Offset, `,
+	loop, parse, Controls, `,
 	{
-	list.= indentLevel "[" k "]"
-	if (IsObject(v) && depth>1)
-		list.="`n" st_printArr(v, depth-1, indentLevel . "    ")
-	Else
-		list.=" => " v
-		list.="`n"
+		LoopField:=trim(A_LoopField)
+		GuiControlGet, Pos, %GuiName%: Pos, %LoopField%
+		if (a_index=1)
+			xx:=PosX, yy:=PosY, ww:=PosX+PosW, hh:=PosY+PosH
+		xx:=((xx<PosX) ? xx : PosX), yy:=((yy<PosY) ? yy : PosY)
+		ww:=((ww>PosX+PosW) ? ww : PosX+PosW), hh:=((hh>PosY+PosH) ? hh : PosY+PosH)
+		GuiControl, %GuiName%: Move, %LoopField%, % "x" PosX+Padding1+Offset1 " y" PosY+Padding3+Offset2+titleHeight
 	}
-	return rtrim(list)
+	xx+=Offset1, yy+=Offset2
+	ww+=Padding1+Padding2+Offset1-xx
+	hh+=Padding3+Padding4+titleHeight+Offset2-yy
+	counter+=1
+	UID:="GB" GUIName counter xx yy ww hh
+	status := GroupBox2_Add(guiname, xx, yy, ww, hh, uid, text)
+	Return (status == true ? [uid,xx,yy,ww,hh] : false)
 }
+GroupBox2_Add(guiname, xx, yy, ww, hh, uid, text) {
+	Global
+	Gui, %GuiName%: add, GroupBox, x%xx% y%yy% w%ww% h%hh% 0x800000 v%UID%, %Text%
+	return (errorlevel == 0 ? true : false)
+}
+
+
+Dlg_Color(Color,hwnd){
+    static
+    if !cc{
+        VarSetCapacity(CUSTOM,16*A_PtrSize,0),cc:=1,size:=VarSetCapacity(CHOOSECOLOR,9*A_PtrSize,0)
+        Loop,16{
+            IniRead,col,color.ini,color,%A_Index%,0
+            NumPut(col,CUSTOM,(A_Index-1)*4,"UInt")
+        }
+    }
+    NumPut(size,CHOOSECOLOR,0,"UInt"),NumPut(hwnd,CHOOSECOLOR,A_PtrSize,"UPtr")
+    ,NumPut(Color,CHOOSECOLOR,3*A_PtrSize,"UInt"),NumPut(3,CHOOSECOLOR,5*A_PtrSize,"UInt")
+    ,NumPut(&CUSTOM,CHOOSECOLOR,4*A_PtrSize,"UPtr")
+    ret:=DllCall("comdlg32\ChooseColor","UPtr",&CHOOSECOLOR,"UInt")
+    if !ret
+    exit
+    Loop,16
+    IniWrite,% NumGet(custom,(A_Index-1)*4,"UInt"),color.ini,color,%A_Index%
+    IniWrite,% Color:=NumGet(CHOOSECOLOR,3*A_PtrSize,"UInt"),color.ini,default,color
+    return Color
+}
+rgb(c){
+    setformat,IntegerFast,H
+    c:=(c&255)<<16|(c&65280)|(c>>16),c:=SubStr(c,1)
+    SetFormat,IntegerFast,D
+    return substr(c,3)
+}
+
+
+#include %A_ScriptDir%\Gdip.ahk
+#include %A_ScriptDir%\particles_class.ahk
