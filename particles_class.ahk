@@ -69,6 +69,38 @@ class particles
 		this.delay:=1000//FPS
 		this.drawCount:=0
 	}
+
+	; I know this isn't the proper way to do it, but it works
+	getDeltaTime()
+	{
+		deltaT:=(1000/this.FPS)/1000
+		return deltaT
+	}
+	
+	clear(refresh="")
+	{
+		Gdip_GraphicsClear(this.ggg)
+		if (refresh!="")
+			UpdateLayeredWindow(refresh, this.hdc, this.cx, this.cy, this.cw, this.ch)
+		; brush:=Gdip_BrushCreateSolid("0x7700ff00")
+		; Gdip_FillRectangle(this.ggg, brush, 0, 0, this.cw, this.ch)
+		; gdip_deleteBrush(brush)
+	}
+	
+	addEmitter(pe="")
+	{
+		if (!isObject(pe))
+			ttt:=this.emitters.push({"type":"Generic"})
+		else
+			ttt:=this.emitters.push(pe)
+			
+		
+		for dkey, dval in this.defaults
+		for ekey, eval in this.emitters
+			if ((isObject(dval) && eval[dkey].length()<0) || eval[dkey]="")
+				eval[dkey]:=dval
+		return this.emitters[ttt]
+	}
 	
 	; Quaity: Default = 0, HighSpeed = 1, HighQuality = 2, None = 3, AntiAlias = 4
 	setCanvas(cx, cy, cw, ch, cquality, drawOnThis="") ; c = canvas
@@ -119,18 +151,6 @@ class particles
 		}
 		return this.ggg
 	}
-
-
-	clear(refresh="")
-	{
-		Gdip_GraphicsClear(this.ggg)
-		; if (refresh!="")
-		; 	UpdateLayeredWindow(refresh, this.hdc, this.cx, this.cy, this.cw, this.ch)
-		; brush:=Gdip_BrushCreateSolid("0x7700ff00")
-		; Gdip_FillRectangle(this.ggg, brush, 0, 0, this.cw, this.ch)
-		; gdip_deleteBrush(brush)
-	}
-
 	
 	draw(drawOnThis="") ; p = particle, e = emitter
 	{
@@ -257,13 +277,6 @@ class particles
 		return this.ggg
 	}
 
-	; I know this isn't the proper way to do it, but it works
-	getDeltaTime()
-	{
-		deltaT:=(1000/this.FPS)/1000
-		return deltaT
-	}
-
 	
 	step() ; this does all phy physics/color/etc math.
 	{
@@ -355,22 +368,6 @@ class particles
 			}
 		}
 	}
-
-	addEmitter(pe="")
-	{
-		if (!isObject(pe))
-			ttt:=this.emitters.push({"type":"Generic"})
-		else
-			ttt:=this.emitters.push(pe)
-			
-		
-		for dkey, dval in this.defaults
-		for ekey, eval in this.emitters
-			if ((isObject(dval) && eval[dkey].length()<0) || eval[dkey]="")
-				eval[dkey]:=dval
-		return this.emitters[ttt]
-	}
-	
 	
 	addParticle(px, py, pe=1, misc*)
 	{
