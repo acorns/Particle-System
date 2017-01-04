@@ -4,6 +4,45 @@ get: "Alternative Download: Gdip All" https://autohotkey.com/boards/viewtopic.ph
 
 
 class particles
+
+Properites:
+	assuming you used: psys:=new particles(30)
+	psys.emitters[emitterN].property
+	| get/set the properties as mentioned in addEmitter()
+	
+	psys.particles[emitterN, particleN].property
+	| Available properties to get/set:
+	| x1     = center x point for a line/circle/everything
+	| y1     = center y point for a line/circle/everything
+	| x2     = for lines, the second x point to connect to
+	| y2     = for lines, the second y point to connect to
+	| dir    = what way is it facing
+	| vel    = how much gravity (velocity) is affecting it
+	| radius = size of a circle, font size of text or the scale of an image
+	| lineW  = How fat a line is
+	| life   = current life phase
+	| mlife  = how much life did it have on creation
+	| color  = what beautiful color will it be
+	| alpha  = how see-through is it? 255 is solid, 0 is invisible
+	| type   = how is it going to be displayed
+	
+	psys.fps
+	| the simulations FPS.
+	| !!! Note !!! Changing this does NOT affect psys,delay
+	
+	psys.delay
+	| How fast the simulation should update, based on the FPS.
+	| This is not used internally, it's meant to be used for the user within sleep/settimer.
+	
+	psys.drawCount
+	| How many things are currently drawn on screen
+	
+	psys.defaults
+	| get/set the default values, as mentioned in addEmitter()
+
+
+
+Methods:
 	__New(FPS=30)
 	| Create a particle system that'll hold all the emitter(s) and particle info.
 	| EXAMPLE: var:=new particles(24) ; create a new particle system that runs at 24 fps
