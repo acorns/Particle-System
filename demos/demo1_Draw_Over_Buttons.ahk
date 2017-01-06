@@ -1,4 +1,4 @@
-﻿/*
+/*
 Name: 
 Version 1.0 (DATE)
 Created: DATE
@@ -142,5 +142,5 @@ return
 
 
 
-
+#include %A_ScriptDir%\Gdip.ahk
 #include %A_ScriptDir%\particles_class.ahk
