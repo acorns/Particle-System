@@ -1,18 +1,3 @@
-/*
-Name: 
-Version 1.0 (DATE)
-Created: DATE
-Author: tidbit
-Credit: 
-
-Hotkeys:
-
-Description:
-
-*/
-
-
-
 #NoEnv  ; Recommended for performance and compatibility with future AutoHotkey releases.
 SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
 ; #singleInstance, off
