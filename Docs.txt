@@ -24,11 +24,11 @@ Properites:
 	| mlife  = how much life did it have on creation
 	| color  = what beautiful color will it be
 	| alpha  = how see-through is it? 255 is solid, 0 is invisible
-	| type   = how is it going to be displayed
+	| type   = how is it going to be displayed, this is the particle type name
 	
 	psys.fps
 	| the simulations FPS.
-	| !!! Note !!! Changing this does NOT affect psys,delay
+	| !!! Note !!! Changing this does NOT affect psys.delay (but it probably should)
 	
 	psys.delay
 	| How fast the simulation should update, based on the FPS.
@@ -76,6 +76,9 @@ Methods:
 	| - These work on both drawOnThis modes: Generic, Generic Fill, Sparks, AllLines
 	| - These *only* work when drawOnThis is specified: Cursor
 	| - These *only* work when drawOnThis is NOT specified: Text, Image
+	|
+	| Returns the Graphics that it was drawn onto
+	|
 	| EXAMPLE: psys.draw()
 	| EXAMPLE: psys.draw(hwnd)
 	
@@ -98,10 +101,10 @@ Methods:
 	| "offx":0          = An additional offset in the x direction, offset from the coords used in addParticle(...)
 	| "offy":0          = An additional offset in the y direction, offset from the coords used in addParticle(...)
 	| "color":""        = If blank, a random color is chosen. Otherwise specify an array of colors to choose from. ["ffffff", "00ff00", "ff4400"].
-	|                     If [type] is "image", you may play your image(s) here instead of colors. ["c:\path\img1.jpg","c:\path\img2.png","c:\path\img3.jpg"]
+	|                     If [type] is "image", you may place your image(s) here instead of colors. ["c:\path\img1.jpg","c:\path\img2.png","c:\path\img3.jpg"]
 	| "colorMode":1     = How the colors should be chosen. 
 	|                     Available modes:
-	|                     1 = Cycle colors in order.
+	|                     1 = Cycle colors in order,
 	|                     2 = Choose randomly,
 	|                     3 = Base the color on how old it is,
 	|                     4 = Same as 3, but reversed
@@ -121,6 +124,8 @@ Methods:
 	| "gravity":[0]     = A pseudo-gravity system to make particles fall down. good values are 50-150. values can be negative to go upward. An array of values to smoothly transition between over its life.
 	| "jitter":[0]      = Apply some wiggle action to those particles! good values are 1-20. An array of values to smoothly transition between over its life.
 	| "spiral":[0]      = How much should the particles rotate, in degrees-per-second. An array of values to smoothly transition between over its life.
+	|
+	| Returns an object of the emitters properiter
 	|
 	| EXAMPLES:
 	| ------
