@@ -1,6 +1,6 @@
-﻿/*
+/*
 Name: Particle System
-Version 2.0 (Saturday, December 31, 2016)
+Version 2.1 (Tuesday, January 17, 2017)
 Created: Thursday, December 22, 2016
 Author: tidbit
 Credit: 
@@ -18,14 +18,14 @@ Description:
 SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
 ; #singleInstance, off
 #singleInstance, force
-; includes are at the bottom
-
 setBatchLines, -1
 setWinDelay, -1
 setControlDelay, -1
-OnExit, whyMustYouLeaveMe
+; includes are at the bottom
+
 _name_:="Particle System"
 _version_:="2.0 (Saturday, December 31, 2016)"
+OnExit, whyMustYouLeaveMe
 
 
 ptypes:="Generic|Generic Fill|Sparks||AllLines|Text|Image|Cursor"
@@ -379,7 +379,7 @@ changeEProperty:
 		typeN:="Generic"
 	if (eLB="")
 		eLB:=1
-
+	
 	ttt:=""
 	if (selCtrl="etype")
 	{
@@ -399,6 +399,8 @@ changeEProperty:
 		gui, main: submit, noHide
 	}
 	
+	offx:=(offx="") ? 0 : offx
+	offy:=(offy="") ? 0 : offy
 	; eLB:=1
 	qqq:=psys.Emitters[eLB]
 	, qqq.type:=typeN
