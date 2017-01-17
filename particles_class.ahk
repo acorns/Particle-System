@@ -1,6 +1,6 @@
 /*
 Name: Particle System
-Version 2.0 (Wednesday, January 4, 2017)
+Version 2.1 (Tuesday, January 17, 2017)
 Created: Thursday, December 22, 2016
 Author: tidbit
 Credit: 
@@ -120,17 +120,17 @@ class particles
 			this.cw:=cw
 			this.ch:=ch
 			; ttt:=substr(this.ID, 3)
-			nnn:=rand(1,20000) ; pretty horrible, I know
-			gui, new, +hwndMYID%nnn% -Caption +E0x80000 +AlwaysOnTop +ToolWindow +OwnDialogs +Owner
-			; gui, show, x0 y0 NA, mouse particles %nnn%
-			gui, show, x%cx% y%cy% w%cw% h%ch% NA, mouse particles %nnn%
+			; nnn:=rand(1,20000) ; pretty horrible, I know
+			gui, new, +hwndMYID -Caption +E0x80000 +AlwaysOnTop +ToolWindow +OwnDialogs +Owner
+			; gui, show, x0 y0 NA, mouse particles 
+			gui, show, x%cx% y%cy% w%cw% h%ch% NA, mouse particles 
 			; msgBox x%cx% y%cy% w%cw% h%ch%
 			this.hbm:=CreateDIBSection(cw, ch)
 			, this.hdc:=CreateCompatibleDC()
 			, this.obm:=SelectObject(this.hdc, this.hbm)
 			, this.ggg:=Gdip_GraphicsFromHDC(this.hdc)
 			, Gdip_SetSmoothingMode(this.ggg, cquality)
-			, this.ID:=MYID%nnn%
+			, this.ID:=MYID
 			; , this.ID:=WinExist("mouse particles " nnn)
 			WinSet, ExStyle, +0x20, % "ahk_id " this.ID
 			; msgBox % this.id
@@ -218,12 +218,12 @@ class particles
 				if (type="text")
 				{
 					font:="Comic Sans MS"
-					, Gdip_FontFamilyCreate(font)
+					, font2:=Gdip_FontFamilyCreate(font)
 					, ttt:="x" vvv.x1 " y" vvv.y1 " c" alpha color " s" radius  " r0 " vvv.misc2
 					, ttt:=strSplit(Gdip_TextToGraphics(this.ggg, vvv.misc1, ttt, font,,,1), "|")
 					, ttt2:="x" vvv.x1-(ttt[3]//2) " y" vvv.y1-(ttt[4]//2) " c" alpha color " s" radius  " r0 " vvv.misc2
 					, Gdip_TextToGraphics(this.ggg, vvv.misc1, ttt2, font)
-					, Gdip_DeleteFontFamily(font)
+					, Gdip_DeleteFontFamily(font2)
 					, this.drawCount+=1
 				}
 				if (type="image")
